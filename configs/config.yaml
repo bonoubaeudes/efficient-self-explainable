@@ -38,7 +38,7 @@ criterion_args:
 
 quantization:
   quant_device: "cpu"
-  n_calib_batches: 75        # ResNet calibration
+  n_calib_batches: 5        # ResNet calibration
   n_calib_batches_bagnet: 25
 
 model:

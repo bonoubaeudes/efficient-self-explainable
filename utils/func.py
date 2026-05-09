@@ -15,6 +15,7 @@ from munch import munchify
 from torch.utils.data import DataLoader
 
 from utils.const import regression_loss
+from utils.metrics import Metric
 
 CIN_hostname = []
 
@@ -303,12 +304,39 @@ def matplotlib_prec_recall_curve(precison_recall_tuples, labels):
 
     return fig
 
-def plot_conf_matrix(cm):
+def plot_conf_matrix(metric_calculator: Metric, class_names):
     """  combine the confusion matrix with the approproate labels to make it easier to visualize """
 
-    column, indices = [0,1], [0,1]
-    table  = pd.DataFrame(cm, columns=column, index=indices)
-    return sns.heatmap(table, annot=True, fmt='d', cmap='viridis')
+    cm = metric_calculator.get_auc_auprc(5)
+
+    table = pd.DataFrame(
+        cm,
+        columns=class_names,
+        index=class_names
+    )
+
+    # plot
+    plt.figure(figsize=(6,5))
+
+    ax = sns.heatmap(
+        table,
+        annot=True,
+        fmt='d',
+        cmap='Blues',
+        linewidths=0.5,
+        linecolor='gray'
+    )
+
+    plt.xlabel('Predicted', fontsize=11)
+    plt.ylabel('True', fontsize=11)
+    plt.title(f' — Accuracy: ', fontsize=12)
+
+    plt.xticks(rotation=30)
+    plt.yticks(rotation=0)
+
+    plt.tight_layout()
+    plt.show()
+
 
 def plot_losses(train_losses, val_losses, title="Training vs Validation Loss"):
     plt.figure(figsize=(8, 4))

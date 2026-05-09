@@ -152,8 +152,6 @@ def eval(cfg, model, dataloader, metric_calculator:Metric, loss_func=None):
 
 
 
-
-
 def initialize_sampler(cfg, train_dataset):
     sampling_strategy = cfg["data"]["sampling_strategy"]
     if sampling_strategy == 'class_balanced':

@@ -1,12 +1,14 @@
+import time
 from math import trunc
 
 from data.dataset import build_dataloaders
 from models.resnet import get_model
+from quantization.quantize import quantize
 from train import fine_tune, evaluate
 from utils.config import parse_args
 import yaml
 
-from utils.func import plot_losses
+from utils.func import plot_losses, plot_conf_matrix
 from utils.metrics import Metric
 
 
@@ -17,10 +19,12 @@ def main():
     epochs = args.epochs or cfg["training"]["epochs"]
     lr     = args.lr     or cfg["training"]["learning_rate"]
     device = cfg["training"]["fine_tune_device"]
+    n_calib_batches = cfg["quantization"]["n_calib_batches"]
     save_path_resnet_fp32 = cfg["paths"]["resnet_fp32_checkpoint"]
 
     num_classes = cfg["model"]["num_classes"]
-    train_loader, val_loader, test_loader, _, train_dataset, class_names, _ = build_dataloaders(
+    since = time.time()
+    train_loader, val_loader, test_loader, calib_loader, train_dataset, class_names, _ = build_dataloaders(
         data_dir    = cfg["data"]["data_dir"],
         batch_size  = cfg["data"]["batch_size"],
         num_workers = cfg["data"]["num_workers"],
@@ -30,12 +34,18 @@ def main():
         image_size  = cfg["data"]["image_size"],
         crop_size   = cfg["data"]["crop_size"],
     )
+
     model = get_model(num_classes)
     metric_calculator = Metric(cfg)
     checkpoint = save_path_resnet_fp32
+
     train_losses, val_losses = fine_tune(cfg, train_dataset, model, train_loader, val_loader, metric_calculator, epochs)
     evaluate(cfg, model, checkpoint, test_loader, metric_calculator, type_ds='test')
+    time_elapsed = time.time() - since
+    print('Training and evaluation complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+    model_quantize = quantize(cfg, model, calib_loader, n_calib_batches)
     plot_losses(train_losses, val_losses)
+    plot_conf_matrix(metric_calculator, class_names)
 
 
 if __name__ == '__main__':

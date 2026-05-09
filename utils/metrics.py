@@ -1,4 +1,8 @@
+import tempfile
+
 import torch
+import time
+import os
 import numpy as np
 
 from sklearn.metrics import roc_curve, auc, precision_recall_curve, recall_score, precision_score, confusion_matrix
@@ -21,14 +25,16 @@ class Metric():
         if self.cfg["data"]["binary"]:
             self.bin_prediction.append(predictions.detach())
             self.onset_target.append(targets.detach())
+        else:
+            self.multi_predictions.append(predictions.detach())
+            self.multi_targets.append(targets.detach())
 
         predictions = self.to_prediction(predictions)
         bin_prediction = (predictions >= self.cfg["data"]["threshold"]).long()
 
         # update metrics
         self.num_samples += len(predictions)
-        print("predictions:", predictions.shape)
-        print("targets:", targets.shape)
+
         self.correct += (predictions == targets).sum().item()
         self.bin_correct += (bin_prediction == bin_targets).sum().item()
         for i, p in enumerate(predictions):
@@ -38,9 +44,10 @@ class Metric():
             self.bin_conf_mat[int(bin_targets[i])][int(p.item())] += 1
 
         #print('end')
+
     
     def get_auc_auprc(self, digits=-1):
-        if self.cfg.data.binary:
+        if self.cfg["data"]["binary"]:
             y_bin_pred = torch.cat(self.bin_prediction, dim=0) # x axis
             y_onset_target = torch.cat(self.onset_target, dim=0)
             y_pred_proba = torch.nn.functional.softmax(y_bin_pred, 1) # y-axis
@@ -81,7 +88,13 @@ class Metric():
             
             return list_auc, list_auprc, list_others
         else:
-            return 0, 0
+            y_mul_pred = torch.cat(self.multi_predictions, dim=0)
+            predictions = torch.tensor(
+                [torch.argmax(p) for p in y_mul_pred]
+            ).long()
+            targets = torch.cat(self.multi_targets, dim=0)
+            cm = confusion_matrix(targets.cpu().numpy(), predictions.cpu().numpy())
+            return cm
 
     def update_val_loss(self, loss):
         self.val_loss.append(loss)
@@ -117,10 +130,11 @@ class Metric():
         self.bin_conf_mat = np.zeros((2, 2), dtype=int)
         self.bin_prediction = [] # for AUC, ROC, AUPRC
         self.onset_target = []   # for AUC, ROC, AUPRC
+        self.multi_predictions = []
+        self.multi_targets = []
 
     def to_prediction(self, predictions):
         if self.criterion in ['cross_entropy', 'focal_loss', 'kappa_loss']:
-            print("predcition (--------)")
             predictions = torch.tensor(
                 [torch.argmax(p) for p in predictions]
             ).long()
@@ -164,3 +178,20 @@ def quadratic_weighted_kappa(conf_mat):
     expected = (expected_matrix * weighted_matrix).sum()
 
     return (observed - expected) / (1 - expected)
+
+
+def latency_ms(model, n=100):
+    dummy = torch.randn(1, 3, 224, 224)
+    model = model.to("cpu").eval()
+    with torch.no_grad():
+        for _ in range(10): model(dummy)
+        t0 = time.perf_counter()
+        for _ in range(n): model(dummy)
+        return (time.perf_counter() - t0) / n * 1000
+
+def model_mb(model):
+    with tempfile.NamedTemporaryFile(suffix=".pth", delete=False) as f:
+        torch.save(model.state_dict(), f.name)
+        size = os.path.getsize(f.name) / 1024**2
+    os.unlink(f.name)
+    return size
