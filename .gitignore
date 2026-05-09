@@ -1,0 +1,35 @@
+# .gitignore
+
+# Model checkpoints (large files)
+results/*.pth
+results/*.pt
+
+# Plots are committed; raw data is not
+results/*.png
+
+
+maize_data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.so
+
+# Notebooks checkpoints
+.ipynb_checkpoints/
+
+# Environments
+.env
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# BagNet source (cloned separately)
+bag-of-local-features-models/

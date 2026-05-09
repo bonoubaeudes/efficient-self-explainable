@@ -1,0 +1,73 @@
+# configs/config.yaml
+
+data:
+  data_dir: "G:/data_maize"
+  binary: False
+  threshold: 2
+  image_size: 224
+  crop_size: 200
+  batch_size: 16
+  num_workers: 0
+  val_split: 0.15      # 15% of total
+  test_split: 0.15     # 15% of total
+  random_state: 42
+  sampling_strategy: instance_balanced
+
+training:
+  network: resnet50
+  epochs: 5
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-4
+  optimizer: "ADAM"
+  momentum: 0.9 # only for SGD. set to 0 to disable momentum
+  nesterov: true # only for SGD.
+  fine_tune_device: "cpu"   # "cpu" if no GPU
+  criterion: cross_entropy
+  loss_weight: null
+
+criterion_args:
+  cross_entropy: {}
+  mean_square_error: {}
+  mean_absolute_error: {}
+  smooth_L1: {}
+  kappa_loss:
+    num_classes: 2 # [2, 5]
+  focal_loss:
+    alpha: 5
+    reduction: mean
+
+quantization:
+  quant_device: "cpu"
+  n_calib_batches: 75        # ResNet calibration
+  n_calib_batches_bagnet: 25
+
+model:
+  num_classes: 3
+  classes:
+    - "Healthy"
+    - "MLB"
+    - "MSV"
+
+paths:
+  resnet_fp32_checkpoint:  "results/best_fp32resnet_model.pth"
+  resnet_int8_checkpoint:  "results/resnet50_3classes_int8.pth"
+  bagnet_fp32_checkpoint:  "results/best_fp32bagnet_model.pth"
+  bagnet_int8_checkpoint:  "results/bagnet33_3classes_int8.pth"
+  output_dir: "results/"
+
+gradcam:
+  region_size: 38
+  k_max: 10
+  n_sensitivity_images: 500
+
+
+noise_robustness:
+  n_images: 200
+  n_display: 4
+  configs:
+    - {type: "gaussian",    level: 0.05}
+    - {type: "gaussian",    level: 0.15}
+    - {type: "gaussian",    level: 0.25}
+    - {type: "salt_pepper", level: 0.05}
+    - {type: "salt_pepper", level: 0.15}
+    - {type: "uniform",     level: 0.10}
