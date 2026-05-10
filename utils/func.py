@@ -10,6 +10,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt 
 
 from datetime import datetime
+
+from matplotlib import gridspec
 from tqdm import tqdm
 from munch import munchify
 from torch.utils.data import DataLoader
@@ -350,3 +352,81 @@ def plot_losses(train_losses, val_losses, title="Training vs Validation Loss"):
     plt.savefig("loss_curve.png", dpi=150)
     plt.show()
 
+
+def plot_all_sensitivity_curves(
+        results_resnet,           # dict {'FP32': ..., 'FP16': ..., 'INT8': ...}
+        results_dense_bagnet,     # dict {'FP32': ..., 'FP16': ..., 'INT8': ...}
+        results_sparse_bagnet,    # dict {'FP32': ..., 'FP16': ..., 'INT8': ...}
+        figsize=(11, 8),
+        tick_labelsize=12,
+        axis_labelsize=12,
+        title_fontsize=13,
+        suptitle_fontsize=15,
+        save_path=None,
+):
+    """
+    Trace les courbes de sensibilité pour :
+      - BagNet33          (pleine largeur, haut)
+      - Dense BagNet      (bas gauche)
+      - Sparse BagNet     (bas droite)
+
+    Chaque `results_*` est un dict dont les valeurs contiennent :
+      - results[method]['mean']  : array (k_max+1,)
+      - results[method]['lower'] : array (k_max+1,)   ← borne basse IC
+      - results[method]['upper'] : array (k_max+1,)   ← borne haute IC
+      - results[method]['ks']    : array (k_max+1,)   ← valeurs de k
+    """
+
+    styles = {
+        'FP32': dict(color='#2176AE', ls='-',  marker='o', ms=5, label='FP32'),
+        'FP16': dict(color='#D85A30', ls='--', marker='s', ms=5, label='FP16'),
+        'INT8': dict(color='#3B6D11', ls=':',  marker='^', ms=5, label='INT8'),
+    }
+
+    panels = [
+        ('ResNet-50',      results_resnet,        (0, slice(None, None))),
+        ('dense BagNet',  results_dense_bagnet,  (1, 0)),
+        ('sparse BagNet', results_sparse_bagnet, (1, 1)),
+    ]
+
+    fig = plt.figure(figsize=figsize, facecolor='white')
+    gs  = gridspec.GridSpec(2, 2, figure=fig, hspace=0.45, wspace=0.32)
+
+    for title, results, gs_idx in panels:
+        ax = fig.add_subplot(gs[gs_idx])
+
+        for method, s in styles.items():
+            if method not in results:
+                continue
+            r  = results[method]
+            ks  = np.array(r['k'])
+            m   = np.array(r['mean_score'])
+            std = np.array(r['std_score'])
+            lo  = m - std
+            hi  = m + std
+
+            ax.fill_between(ks, lo, hi, color=s['color'], alpha=0.15)
+            ax.plot(ks, m,
+                    color=s['color'], ls=s['ls'],
+                    marker=s['marker'], markersize=s['ms'],
+                    linewidth=2, label=s['label'])
+
+        ax.set_title(f'Predictive Score vs k — {title}',
+                     fontsize=title_fontsize, fontweight='bold', pad=7)
+        ax.set_xlabel('Number of Masked Regions (k)', fontsize=axis_labelsize)
+        ax.set_ylabel('Mean Predictive Class Score',  fontsize=axis_labelsize)
+        ax.tick_params(labelsize=tick_labelsize)
+        ax.set_xlim(left=0)
+        ax.set_ylim(bottom=0.2)
+        ax.grid(True, linestyle='--', alpha=0.4)
+        ax.spines[['top', 'right']].set_visible(False)
+        ax.legend(fontsize=tick_labelsize - 1, framealpha=0.7, loc='upper right')
+
+
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=180, bbox_inches='tight', facecolor='white')
+        print(f"Figure saved : {save_path}")
+
+    plt.show()
