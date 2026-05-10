@@ -1,4 +1,6 @@
 import os
+from typing import Optional, List
+
 import yaml
 import torch
 import shutil
@@ -430,3 +432,119 @@ def plot_all_sensitivity_curves(
         print(f"Figure saved : {save_path}")
 
     plt.show()
+
+def plot_quantization_results(
+        all_results: dict[str, dict],
+        model_names: Optional[List[str]] = None,
+        save_path: str = '/kaggle/working/quantization_results.png'
+):
+    """
+    Parameters
+    ----------
+    all_results : dict
+        Keys are model names (e.g. 'Dense BagNet', 'Sparse BagNet', 'ResNet').
+        Each value is a dict with keys: 'FP32', 'FP16', 'INT8', each containing
+        {'acc', 'size', 'pc_mean', 'pc_std', 'edge_mean', 'edge_std'}.
+    model_names : list[str] | None
+        Display order for models. Defaults to all_results.keys().
+    save_path : str
+        Output path.
+    """
+    from matplotlib.patches import Patch
+    from matplotlib.lines import Line2D
+
+    if model_names is None:
+        model_names = list(all_results.keys())
+
+    n_models = len(model_names)
+    color_bar  = '#C8722A'
+    color_size = '#5C1A00'
+    color_pc   = '#90EE90'
+    color_edge = '#ADD8E6'
+    width_bar  = 0.5
+    w2         = 0.35
+
+    fig, axes = plt.subplots(
+        2, n_models,
+        figsize=(3.5 * n_models, 6),
+        constrained_layout=True
+    )
+    # axes[0, i] → accuracy + size
+    # axes[1, i] → inference time
+
+    for col, name in enumerate(model_names):
+        res    = all_results[name]
+        labels = list(res.keys())           # ['FP32', 'FP16', 'INT8']
+        x      = np.arange(len(labels))
+
+        accs   = [res[k]['acc']       for k in labels]
+        sizes  = [res[k]['size']      for k in labels]
+        pc_m   = [res[k]['pc_mean']   for k in labels]
+        pc_s   = [res[k]['pc_std']    for k in labels]
+        edge_m = [res[k]['edge_mean'] for k in labels]
+        edge_s = [res[k]['edge_std']  for k in labels]
+
+        # ── Row 0 : Accuracy + Model size ──────────────────────────
+        ax1 = axes[0, col]
+        bars = ax1.bar(x, accs, width=width_bar, color=color_bar, zorder=2)
+        ax1.set_ylim(85, 100)
+        ax1.set_ylabel('Accuracy (%)' if col == 0 else '', fontsize=14)
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(labels, fontsize=15)
+        ax1.set_xlabel('Quantization variant', fontsize=14)
+        ax1.grid(axis='y', linestyle='--', alpha=0.4, zorder=1)
+        ax1.set_title(f'(a{col+1}) {name}', fontsize=11)
+
+        for bar, acc in zip(bars, accs):
+            ax1.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 0.03,
+                f'{acc:.1f}', ha='center', va='bottom', fontsize=11
+            )
+
+        ax1b = ax1.twinx()
+        ax1b.plot(x, sizes, 'o-', color=color_size, linewidth=2, markersize=6, zorder=3)
+        for xi, si in zip(x, sizes):
+            ax1b.annotate(
+                f'{si}', (xi, si),
+                textcoords='offset points', xytext=(5, 4),
+                fontsize=13, color=color_size
+            )
+        ax1b.set_ylabel('Model size (MB)' if col == n_models - 1 else '',
+                        fontsize=14, color=color_size)
+        ax1b.set_ylim(0, max(sizes) * 1.4)
+        ax1b.tick_params(axis='y', labelcolor=color_size)
+
+        if col == 0:
+            ax1.legend(handles=[
+                Patch(facecolor=color_bar, label='Accuracy (%)'),
+                Line2D([0], [0], color=color_size, marker='o', label='Model size (MB)')
+            ], fontsize=11, loc='lower left')
+
+        # ── Row 1 : Inference time ──────────────────────────────────
+        ax2 = axes[1, col]
+
+        bars_pc   = ax2.bar(x - w2/2, pc_m,   w2, yerr=pc_s,   color=color_pc,
+                            capsize=4, label='PC inference',   zorder=2)
+        bars_edge = ax2.bar(x + w2/2, edge_m, w2, yerr=edge_s, color=color_edge,
+                            capsize=4, label='Edge inference', zorder=2)
+        ax2.bar_label(bars_pc,   fmt='%.0f', fontsize=12)
+        ax2.bar_label(bars_edge, fmt='%.0f', fontsize=12)
+
+        ax2.set_ylabel('Inference time (ms)' if col == 0 else '', fontsize=14)
+        ax2.set_xlabel('Quantization variant', fontsize=14)
+        ax2.set_xticks(x)
+        ax2.set_xticklabels(labels, fontsize=15)
+        y_upper = max(edge_m) * 1.35
+        ax2.set_ylim(0, y_upper)
+        ax2.set_yticks(np.arange(0, y_upper + 50, 50))
+        ax2.grid(axis='y', linestyle='--', alpha=0.4, zorder=1)
+        ax2.set_title(f'(b{col+1}) {name}', fontsize=11)
+
+        if col == 0:
+            ax2.legend(fontsize=9, loc='upper left')
+
+
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.show()
+    print(f"\n  Saved: {save_path}")

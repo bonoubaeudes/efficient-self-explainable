@@ -189,9 +189,60 @@ def latency_ms(model, n=100):
         for _ in range(n): model(dummy)
         return (time.perf_counter() - t0) / n * 1000
 
+def measure_inference_time(model, device='cpu', precision='fp32',
+                           input_size=(1, 3, 224, 224),
+                           n_warmup=20, n_runs=100):
+    model.eval().to(device)
+
+    if precision == 'fp16' and device == 'cpu':
+        return None, None
+
+    dummy = torch.randn(*input_size).to(device)
+    if precision == 'fp16':
+        dummy = dummy.half()
+
+    # Warmup
+    with torch.no_grad():
+        for _ in range(n_warmup):
+            _ = model(dummy.to(device))
+
+    # Mesure
+    times = []
+    with torch.no_grad():
+        for _ in range(n_runs):
+            if device == 'cuda':
+                torch.cuda.synchronize()
+            t0 = time.perf_counter()
+            _ = model(dummy)
+            if device == 'cuda':
+                torch.cuda.synchronize()
+            times.append((time.perf_counter() - t0) * 1000)   # ms
+
+    return np.mean(times), np.std(times)
+
 def model_mb(model):
     with tempfile.NamedTemporaryFile(suffix=".pth", delete=False) as f:
         torch.save(model.state_dict(), f.name)
         size = os.path.getsize(f.name) / 1024**2
     os.unlink(f.name)
     return size
+
+def evaluate_accuracy(model, dataloader, device='cpu', precision='fp32', is_bagnet=True):
+    model.eval().to(device)
+    correct, total = 0, 0
+    with torch.no_grad():
+        for images, labels in dataloader:
+            if precision == 'fp16':
+                images = images.half()
+            images, labels = images.to(device), labels.to(device)
+            with torch.autocast(device_type=device,
+                                dtype=torch.float16,
+                                enabled=(precision == 'fp16')):
+                if is_bagnet:
+                    out, _, _ = model(images)
+                else:
+                    out = model(images)
+            preds   = out.float().argmax(dim=1)
+            correct += (preds == labels).sum().item()
+            total   += labels.size(0)
+    return 100.0 * correct / total
