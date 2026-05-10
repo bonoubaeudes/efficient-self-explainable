@@ -1,5 +1,5 @@
 from models.bagnet import get_bagnet_model
-from models.resnet import get_model
+from models.resnet import get_resnet_model
 
 
 def builder(cfg, num_classes:int):
@@ -9,5 +9,5 @@ def builder(cfg, num_classes:int):
     if bagnet:
         return get_bagnet_model(num_classes = num_classes), bagnet_fp32_checkpoint
     else:
-        return get_model(num_classes = num_classes), save_path_resnet_fp32
+        return get_resnet_model(num_classes = num_classes), save_path_resnet_fp32
 
