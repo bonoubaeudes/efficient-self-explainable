@@ -14,7 +14,7 @@ data:
   sampling_strategy: instance_balanced
 
 training:
-  network: resnet50
+  network: bagnet
   epochs: 5
   learning_rate: 1.0e-4
   weight_decay: 1.0e-4

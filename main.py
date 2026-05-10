@@ -1,7 +1,10 @@
 import time
 from math import trunc
+import sys
 
 from data.dataset import build_dataloaders
+from models.bagnet import get_bagnet_model
+from models.builder import builder
 from models.resnet import get_model
 from quantization.quantize import quantize
 from train import fine_tune, evaluate
@@ -10,6 +13,7 @@ import yaml
 
 from utils.func import plot_losses, plot_conf_matrix
 from utils.metrics import Metric
+from utils.visualize_bagnet_evidence import visualize_bagnet_evidence
 
 
 def main():
@@ -35,17 +39,18 @@ def main():
         crop_size   = cfg["data"]["crop_size"],
     )
 
-    model = get_model(num_classes)
+    model, checkpoint = builder(cfg, num_classes)
     metric_calculator = Metric(cfg)
-    checkpoint = save_path_resnet_fp32
-
-    train_losses, val_losses = fine_tune(cfg, train_dataset, model, train_loader, val_loader, metric_calculator, epochs)
+    print('h')
+    train_losses, val_losses = fine_tune(cfg, train_dataset, model, train_loader, val_loader, metric_calculator, epochs, checkpoint)
     evaluate(cfg, model, checkpoint, test_loader, metric_calculator, type_ds='test')
     time_elapsed = time.time() - since
     print('Training and evaluation complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-    model_quantize = quantize(cfg, model, calib_loader, n_calib_batches)
+    #model_quantize = quantize(cfg, model, calib_loader, n_calib_batches)
     plot_losses(train_losses, val_losses)
     plot_conf_matrix(metric_calculator, class_names)
+    image_path="MLB/1621319173100.jpg"
+    visualize_bagnet_evidence(cfg, image_path, model)
 
 
 if __name__ == '__main__':

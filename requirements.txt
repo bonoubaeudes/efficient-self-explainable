@@ -11,5 +11,5 @@ tqdm>=4.65.0
 PyYAML>=6.0
 munch>=2.5.0
 # BagNet: install separately with:
-# git clone https://github.com/wielandbrendel/bag-of-local-features-models.git
+bagnets @ git+https://github.com/wielandbrendel/bag-of-local-features-models.git@8493fb442c9b9ccfeaa970c950ca67832017f072
 # pip install -e bag-of-local-features-models/

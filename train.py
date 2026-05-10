@@ -43,6 +43,9 @@ def fine_tune(
               f"  val_acc={val_acc:.4f}")
     return train_losses, val_losses
 
+def l1_regularization(activation_maps, lambda_l1=1e-6):
+    l1_norm = torch.abs(activation_maps).sum()
+    return lambda_l1 * l1_norm
 
 def train(cfg, model, loss_function, train_loader, metric_calculator):
     device = cfg["training"]["fine_tune_device"]
@@ -55,8 +58,8 @@ def train(cfg, model, loss_function, train_loader, metric_calculator):
         images, labels = images.to(device), labels.to(device)
         optimizer.zero_grad()
         if bagnet:
-            logits = model(images)
-            loss = loss_function(logits, labels)
+            logits, evidence_maps, _ = model(images)
+            loss = loss_function(logits, labels) + l1_regularization(evidence_maps)
         else:
             logits = model(images)
             loss = loss_function(logits, labels)
@@ -78,10 +81,11 @@ def validation(cfg, model, val_loader, loss_function):
         for images, labels in val_loader:
             images, labels = images.to(device), labels.to(device)
             if bagnet:
-                logits,_,_   = model(images)
+                logits, evidence_maps,_   = model(images)
+                val_loss    += loss_function(logits, labels).item() + l1_regularization(evidence_maps)
             else:
                 logits   = model(images)
-            val_loss    += loss_function(logits, labels).item()
+                val_loss    += loss_function(logits, labels).item()
             val_correct += (logits.argmax(1) == labels).sum().item()
             val_total   += labels.size(0)
     val_acc = val_correct/val_total
@@ -136,14 +140,14 @@ def eval(cfg, model, dataloader, metric_calculator:Metric, loss_func=None):
         images, labels = images.to(device), labels.to(device)
         labels = select_target_type(labels, criterion)
         if 'bagnet' in cfg["training"]["network"]:
-            pred, _, _ = model(images)
+            pred, evidence_maps, _ = model(images)
+            loss = loss_function(pred, labels) + l1_regularization(evidence_maps)
         else:
             pred = model(images)
+            loss = loss_function(pred, labels)
         metric_calculator.update(pred, labels)
-        loss = loss_function(pred, labels)
         epoch_loss += l['op'](loss)
         avg_val_loss = epoch_loss / (step + 1)
-
     if loss_func:
         metric_calculator.update_val_loss(avg_val_loss)
 

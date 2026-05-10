@@ -1,8 +1,13 @@
+from models.bagnet import get_bagnet_model
 from models.resnet import get_model
 
 
-def builder(model, num_classes:int):
-    if model == "resnet":
-        return get_model(num_classes = num_classes)
-    elif model == "bagnet":
-        return "to implement"
+def builder(cfg, num_classes:int):
+    save_path_resnet_fp32 = cfg["paths"]["resnet_fp32_checkpoint"]
+    bagnet_fp32_checkpoint = cfg["paths"]["bagnet_fp32_checkpoint"]
+    bagnet = True if "bagnet" in cfg["training"]["network"] else False
+    if bagnet:
+        return get_bagnet_model(num_classes = num_classes), bagnet_fp32_checkpoint
+    else:
+        return get_model(num_classes = num_classes), save_path_resnet_fp32
+
