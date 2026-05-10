@@ -5,7 +5,7 @@ import sys
 from data.dataset import build_dataloaders
 from models.bagnet import get_bagnet_model
 from models.builder import builder
-from models.resnet import get_model
+from models.resnet import get_resnet_model
 from quantization.quantize import quantize
 from train import fine_tune, evaluate
 from utils.config import parse_args
