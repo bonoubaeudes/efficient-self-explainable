@@ -349,3 +349,4 @@ def plot_losses(train_losses, val_losses, title="Training vs Validation Loss"):
     plt.tight_layout()
     plt.savefig("loss_curve.png", dpi=150)
     plt.show()
+
